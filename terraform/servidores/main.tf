@@ -6,9 +6,9 @@ terraform {
     }
   }
 }
-resource "proxmox_virtual_environment_file" "mariadb_script_master" {
+resource "proxmox_virtual_environment_file" "mariadb_master_script" {
   content_type = "snippets"
-  datastore_id = "local"
+  datastore_id = "local" # ◄ Tu almacenamiento local que ya tiene snippets activos
   node_name    = "proxmox"
 
   source_raw {
@@ -64,12 +64,12 @@ resource "proxmox_virtual_environment_vm" "mariadb_server1" {
         gateway = "192.168.1.1"
       }
     }
-    user_data_file_id = proxmox_virtual_environment_file.mariadb_script_master.id
+    user_data_file_id = proxmox_virtual_environment_file.mariadb_master_script.id
   }
 }
-resource "proxmox_virtual_environment_file" "mariadb_script_slave" {
+resource "proxmox_virtual_environment_file" "mariadb_slave_script" {
   content_type = "snippets"
-  datastore_id = "local"
+  datastore_id = "local" # ◄ Tu almacenamiento local que ya tiene snippets activos
   node_name    = "proxmox"
 
   source_raw {
@@ -124,14 +124,13 @@ resource "proxmox_virtual_environment_vm" "mariadb_server2" {
         gateway = "192.168.1.1"
       }
     }
-    user_data_file_id = proxmox_virtual_environment_file.mariadb_script_slave.id
+    user_data_file_id = proxmox_virtual_environment_file.mariadb_slave_script.id
   }
   depends_on = [ proxmox_virtual_environment_vm.mariadb_server1 ]
 }
-
-resource "proxmox_virtual_environment_file" "apache_script" {
+resource "proxmox_virtual_environment_file" "apache_init_script" {
   content_type = "snippets"
-  datastore_id = "local"
+  datastore_id = "local" # ◄ Tu almacenamiento local que ya tiene snippets activos
   node_name    = "proxmox"
 
   source_raw {
@@ -146,7 +145,6 @@ resource "proxmox_virtual_environment_file" "apache_script" {
     git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
     cd config-repo/ansible/playbooks
     ansible-playbook apache_setup.yaml
-     EOF"
     EOF
 
     file_name = "apache-init.sh"
@@ -191,8 +189,8 @@ resource "proxmox_virtual_environment_vm" "apache1" {
         gateway = "192.168.2.1"
       }
     }
-    user_data_file_id = proxmox_virtual_environment_file.apache_script.id
-  }
+      user_data_file_id = proxmox_virtual_environment_file.apache_init_script.id
+    }
   depends_on = [ proxmox_virtual_environment_vm.mariadb_server2 ]
 }
 
@@ -233,13 +231,13 @@ resource "proxmox_virtual_environment_vm" "apache2" {
         gateway = "192.168.2.1"
       }
     }
-    user_data_file_id = proxmox_virtual_environment_file.apache_script.id
+        user_data_file_id = proxmox_virtual_environment_file.apache_init_script.id
   }
   depends_on = [ proxmox_virtual_environment_vm.apache1 ]
 }
-resource "proxmox_virtual_environment_file" "haproxy_script" {
+resource "proxmox_virtual_environment_file" "haproxy_init_script" {
   content_type = "snippets"
-  datastore_id = "local"
+  datastore_id = "local" # ◄ Tu almacenamiento local que ya tiene snippets activos
   node_name    = "proxmox"
 
   source_raw {
@@ -253,8 +251,7 @@ resource "proxmox_virtual_environment_file" "haproxy_script" {
     cd /tmp
     git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
     cd config-repo/ansible/playbooks
-    ansible-playbook haproxy_setup.yaml
-     EOF"
+    ansible-playbook haproxy_setup.yaml"
     EOF
 
     file_name = "haproxy-init.sh"
@@ -293,13 +290,13 @@ resource "proxmox_virtual_environment_vm" "haproxy" {
         gateway = "192.168.2.1"
       }
     }
-    user_data_file_id = proxmox_virtual_environment_file.haproxy_script.id
+      user_data_file_id = proxmox_virtual_environment_file.haproxy_init_script.id
   }
   depends_on = [ proxmox_virtual_environment_vm.apache2 ]
 }
-resource "proxmox_virtual_environment_file" "zabbix_script" {
+resource "proxmox_virtual_environment_file" "zabbix_init_script" {
   content_type = "snippets"
-  datastore_id = "local"
+  datastore_id = "local" # ◄ Tu almacenamiento local que ya tiene snippets activos
   node_name    = "proxmox"
 
   source_raw {
@@ -313,8 +310,7 @@ resource "proxmox_virtual_environment_file" "zabbix_script" {
     cd /tmp
     git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
     cd config-repo/ansible/playbooks
-    ansible-playbook zabbix_setup.yaml
-     EOF"
+    ansible-playbook zabbix_setup.yaml"
     EOF
 
     file_name = "zabbix-init.sh"
@@ -356,7 +352,7 @@ resource "proxmox_virtual_environment_vm" "zabbix_server" {
         gateway = "192.168.1.1"
       }
     }
-    user_data_file_id = proxmox_virtual_environment_file.zabbix_script.id
+      user_data_file_id = proxmox_virtual_environment_file.zabbix_init_script.id
   }
   depends_on = [ proxmox_virtual_environment_vm.haproxy ]
 }
