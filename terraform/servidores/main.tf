@@ -45,7 +45,7 @@ resource "proxmox_virtual_environment_vm" "mariadb_server1" {
     enabled = false
   }
   clone {
-    vm_id = 108
+    vm_id = 107
   }
   cpu { cores = 2 }
   memory { dedicated = 4096 }
@@ -113,7 +113,7 @@ resource "proxmox_virtual_environment_vm" "mariadb_server2" {
     enabled = false
   }
   clone {
-    vm_id = 102
+    vm_id = 108
   }
   cpu { cores = 2 }
   memory { dedicated = 4096 }
@@ -184,7 +184,7 @@ resource "proxmox_virtual_environment_vm" "apache1" {
     }
 
   clone {
-    vm_id = 103
+    vm_id = 102
   }
 
   cpu { cores = 2 }
@@ -227,7 +227,7 @@ resource "proxmox_virtual_environment_vm" "apache2" {
     }
 
   clone {
-    vm_id = 104
+    vm_id = 103
   }
 
   cpu { cores = 2 }
@@ -298,7 +298,7 @@ resource "proxmox_virtual_environment_vm" "haproxy" {
     enabled = false
   }
   clone {
-    vm_id = 105
+    vm_id = 104
   }
   network_device {
     bridge = "vmbr2"
@@ -365,7 +365,7 @@ resource "proxmox_virtual_environment_vm" "zabbix_server" {
     enabled = false
   }
   clone {
-    vm_id = 106
+    vm_id = 105
   }
   cpu { cores = 2 }
   memory { dedicated = 4096 }
