@@ -61,7 +61,6 @@ resource "proxmox_virtual_environment_vm" "mariadb_server1" {
     size         = 50
   }
   initialization {
-    datastore_id = "local-lvm"
     user_account {
       username = "ubuntu"
       password = "1234"
@@ -130,7 +129,6 @@ resource "proxmox_virtual_environment_vm" "mariadb_server2" {
     size         = 50
   }
   initialization {
-    datastore_id = "local-lvm"
     user_account {
       username = "ubuntu"
       password = "1234"
@@ -203,7 +201,6 @@ resource "proxmox_virtual_environment_vm" "apache1" {
     size         = 20
   }
   initialization {
-    datastore_id = "local-lvm"
     user_account {
       username = "ubuntu"
       password = "1234"
@@ -247,7 +244,6 @@ resource "proxmox_virtual_environment_vm" "apache2" {
     size         = 20
   }
   initialization {
-    datastore_id = "local-lvm"
     user_account {
       username = "ubuntu"
       password = "1234"
@@ -315,7 +311,6 @@ resource "proxmox_virtual_environment_vm" "haproxy" {
     size         = 20
   }
   initialization {
-    datastore_id = "local-lvm"
     user_account {
       username = "ubuntu"
       password = "1234"
@@ -386,7 +381,6 @@ resource "proxmox_virtual_environment_vm" "zabbix_server" {
     size         = 50
   }
   initialization {
-    datastore_id = "local-lvm"
     user_account {
       username = "ubuntu"
       password = "1234"
