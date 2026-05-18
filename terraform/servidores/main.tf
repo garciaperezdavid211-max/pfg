@@ -15,6 +15,9 @@ resource "proxmox_virtual_environment_file" "mariadb_master_script" {
     data = <<-EOF
     instance-id: "id-${timestamp()}"
     #cloud-config
+    password: 1234
+chpasswd: { expire: False }
+ssh_pwauth: True
     write_files:
       - path: /tmp/deploy.sh
         permissions: '0755'
@@ -85,6 +88,9 @@ resource "proxmox_virtual_environment_file" "mariadb_slave_script" {
     data = <<-EOF
     instance-id: "id-${timestamp()}"
     #cloud-config
+    password: 1234
+chpasswd: { expire: False }
+ssh_pwauth: True
     write_files:
       - path: /tmp/deploy.sh
         permissions: '0755'
@@ -155,6 +161,9 @@ resource "proxmox_virtual_environment_file" "apache_init_script" {
     data = <<-EOF
     instance-id: "id-${timestamp()}"
     #cloud-config
+    password: 1234
+chpasswd: { expire: False }
+ssh_pwauth: True
     write_files:
       - path: /tmp/deploy.sh
         permissions: '0755'
@@ -271,6 +280,9 @@ resource "proxmox_virtual_environment_file" "haproxy_init_script" {
     data = <<-EOF
     instance-id: "id-${timestamp()}"
     #cloud-config
+    password: 1234
+chpasswd: { expire: False }
+ssh_pwauth: True
     write_files:
       - path: /tmp/deploy.sh
         permissions: '0755'
@@ -339,6 +351,9 @@ resource "proxmox_virtual_environment_file" "zabbix_init_script" {
     data = <<-EOF
     instance-id: "id-${timestamp()}"
     #cloud-config
+    password: 1234
+chpasswd: { expire: False }
+ssh_pwauth: True
     write_files:
       - path: /tmp/deploy.sh
         permissions: '0755'
