@@ -13,19 +13,27 @@ resource "proxmox_virtual_environment_file" "mariadb_master_script" {
 
   source_raw {
     data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 github.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git python3-mysqldb
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
-    cd config-repo/ansible/playbooks
-    ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=master"
+    #cloud-config
+    write_files:
+      - path: /tmp/deploy.sh
+        permissions: '0755'
+        content: |
+          #!/bin/bash
+          until ping -c 1 github.com &>/dev/null; do sleep 2; done
+          apt-get update
+          apt-get install -y software-properties-common git python3-mysqldb
+          add-apt-repository --yes --update ppa:ansible/ansible
+          apt-get install -y ansible
+          cd /tmp
+          git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+          cd config-repo/ansible/playbooks
+          ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=master"
+
+    runcmd:
+      - /tmp/deploy.sh
     EOF
 
-    file_name = "mariadb-master-init.sh"
+    file_name = "mariadb-master-init.sh" 
   }
 }
 # 1. MariaDB Servers (2 máquinas)
@@ -74,19 +82,27 @@ resource "proxmox_virtual_environment_file" "mariadb_slave_script" {
 
   source_raw {
     data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 github.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git python3-mysqldb
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
-    cd config-repo/ansible/playbooks
-    ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=slave"
+    #cloud-config
+    write_files:
+      - path: /tmp/deploy.sh
+        permissions: '0755'
+        content: |
+          #!/bin/bash
+          until ping -c 1 github.com &>/dev/null; do sleep 2; done
+          apt-get update
+          apt-get install -y software-properties-common git python3-mysqldb
+          add-apt-repository --yes --update ppa:ansible/ansible
+          apt-get install -y ansible
+          cd /tmp
+          git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+          cd config-repo/ansible/playbooks
+          ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=slave"
+
+    runcmd:
+      - /tmp/deploy.sh
     EOF
 
-    file_name = "mariadb-slave-init.sh"
+    file_name = "mariadb-slave-init.sh" 
   }
 }
 resource "proxmox_virtual_environment_vm" "mariadb_server2" {
@@ -135,21 +151,28 @@ resource "proxmox_virtual_environment_file" "apache_init_script" {
 
   source_raw {
     data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 github.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git python3-mysqldb
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
-    cd config-repo/ansible/playbooks
-    ansible-playbook apache_setup.yaml
-    EOF
+    #cloud-config
+    write_files:
+      - path: /tmp/deploy.sh
+        permissions: '0755'
+        content: |
+          #!/bin/bash
+          until ping -c 1 github.com &>/dev/null; do sleep 2; done
+          apt-get update
+          apt-get install -y software-properties-common git python3-mysqldb
+          add-apt-repository --yes --update ppa:ansible/ansible
+          apt-get install -y ansible
+          cd /tmp
+          git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+          cd config-repo/ansible/playbooks
+          ansible-playbook apache_setup.yaml"
 
-    file_name = "apache-init.sh"
+    runcmd:
+      - /tmp/deploy.sh
+    EOF
   }
-}
+    file_name = "apache-init.sh" 
+  }
 # 2. Apache Web Servers
 resource "proxmox_virtual_environment_vm" "apache1" {
   name      = "Apache-1"
@@ -242,19 +265,27 @@ resource "proxmox_virtual_environment_file" "haproxy_init_script" {
 
   source_raw {
     data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 github.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git python3-mysqldb
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
-    cd config-repo/ansible/playbooks
-    ansible-playbook haproxy_setup.yaml"
+    #cloud-config
+    write_files:
+      - path: /tmp/deploy.sh
+        permissions: '0755'
+        content: |
+          #!/bin/bash
+          until ping -c 1 github.com &>/dev/null; do sleep 2; done
+          apt-get update
+          apt-get install -y software-properties-common git python3-mysqldb
+          add-apt-repository --yes --update ppa:ansible/ansible
+          apt-get install -y ansible
+          cd /tmp
+          git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+          cd config-repo/ansible/playbooks
+          ansible-playbook haproxy_setup.yaml"
+
+    runcmd:
+      - /tmp/deploy.sh
     EOF
 
-    file_name = "haproxy-init.sh"
+    file_name = "haproxy-init.sh" 
   }
 }
 # 3. HAProxy
@@ -299,21 +330,29 @@ resource "proxmox_virtual_environment_file" "zabbix_init_script" {
   datastore_id = "local" # ◄ Tu almacenamiento local que ya tiene snippets activos
   node_name    = "proxmox"
 
-  source_raw {
+  ssource_raw {
     data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 github.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git python3-mysqldb
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
-    cd config-repo/ansible/playbooks
-    ansible-playbook zabbix_setup.yaml"
+    #cloud-config
+    write_files:
+      - path: /tmp/deploy.sh
+        permissions: '0755'
+        content: |
+          #!/bin/bash
+          until ping -c 1 github.com &>/dev/null; do sleep 2; done
+          apt-get update
+          apt-get install -y software-properties-common git python3-mysqldb
+          add-apt-repository --yes --update ppa:ansible/ansible
+          apt-get install -y ansible
+          cd /tmp
+          git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+          cd config-repo/ansible/playbooks
+          ansible-playbook zabbix_setup.yaml"
+
+    runcmd:
+      - /tmp/deploy.sh
     EOF
 
-    file_name = "zabbix-init.sh"
+    file_name = "zabbix-init.sh" 
   }
 }
 # 4. Zabbix Server
