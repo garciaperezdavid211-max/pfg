@@ -60,6 +60,10 @@ resource "proxmox_virtual_environment_vm" "mariadb_server1" {
     interface    = "scsi0"
     size         = 50
   }
+  disk {
+    interface    = "ide0"
+    type         = "cloudinit"
+  }
   initialization {
     user_account {
       username = "ubuntu"
@@ -127,6 +131,10 @@ resource "proxmox_virtual_environment_vm" "mariadb_server2" {
     datastore_id = "local-lvm"
     interface    = "scsi0"
     size         = 50
+  }
+  disk {
+    interface    = "ide0"
+    type         = "cloudinit"
   }
   initialization {
     user_account {
@@ -200,6 +208,10 @@ resource "proxmox_virtual_environment_vm" "apache1" {
     interface    = "scsi0"
     size         = 20
   }
+    disk {
+      interface    = "ide0"
+      type         = "cloudinit"
+    }
   initialization {
     user_account {
       username = "ubuntu"
@@ -243,6 +255,10 @@ resource "proxmox_virtual_environment_vm" "apache2" {
     interface    = "scsi0"
     size         = 20
   }
+    disk {
+      interface    = "ide0"
+      type         = "cloudinit"
+    }
   initialization {
     user_account {
       username = "ubuntu"
@@ -310,6 +326,10 @@ resource "proxmox_virtual_environment_vm" "haproxy" {
     interface    = "scsi0"
     size         = 20
   }
+    disk {
+      interface    = "ide0"
+      type         = "cloudinit"
+    }
   initialization {
     user_account {
       username = "ubuntu"
@@ -379,6 +399,10 @@ resource "proxmox_virtual_environment_vm" "zabbix_server" {
     datastore_id = "local-lvm"
     interface    = "scsi0"
     size         = 50
+  }
+  disk {
+    interface    = "ide0"
+    type         = "cloudinit"
   }
   initialization {
     user_account {
