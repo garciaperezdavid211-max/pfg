@@ -1,0 +1,14 @@
+---
+# ansible/site.yml
+
+# 1. Primero MariaDB: los demás dependen de que la base de datos esté lista
+- import_playbook: playbooks/mariadb_setup.yaml
+
+# 2. Los Servidores Web
+- import_playbook: playbooks/apache_setup.yaml
+
+# 3. El Balanceador: depende de que los Apaches estén instalados para balancear
+- import_playbook: playbooks/haproxy_setup.yaml
+
+# 4. Zabbix: depende de MariaDB para su base de datos remota
+- import_playbook: playbooks/zabbix_setup.yaml

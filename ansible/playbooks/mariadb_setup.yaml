@@ -1,0 +1,131 @@
+- name: Configurar Motor de Base de Datos MariaDB con Replica
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+    # -------------------------------------------------------------
+    # TAREAS COMUNES PARA AMBOS NODOS
+    # -------------------------------------------------------------
+    - name: Actualizar cache apt e instalar MariaDB Server
+      apt:
+        name: mariadb-server
+        state: present
+        update_cache: yes
+
+    - name: Asegurar que MariaDB esta arrancado y habilitado
+      systemd:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Permitir conexiones externas en el Bind-Address
+      ini_file:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        section: mysqld
+        option: bind-address
+        value: "0.0.0.0"
+      notify: Reiniciar MariaDB
+
+    # -------------------------------------------------------------
+    # CONFIGURACIÓN EXCLUSIVA DEL MAESTRO (db1)
+    # -------------------------------------------------------------
+    - name: Configurar parametros del nodo Maestro
+      block:
+        - name: Asignar ID unico al Maestro
+          ini_file:
+            path: /etc/mysql/mariadb.conf.d/50-server.cnf
+            section: mysqld
+            option: server-id
+            value: "1"
+
+        - name: Habilitar el registro binario (binlog)
+          ini_file:
+            path: /etc/mysql/mariadb.conf.d/50-server.cnf
+            section: mysqld
+            option: log_bin
+            value: /var/log/mysql/mysql-bin.log
+          notify: Reiniciar MariaDB
+
+        # Forzamos el reinicio inmediato para aplicar el binlog antes de crear el usuario
+        - name: Forzar reinicio de MariaDB para levantar binlog
+          meta: flush_handlers
+
+        - name: Crear usuario de replica para el esclavo
+          mysql_user:
+            name: replica_user
+            password: "password_replica_123"
+            priv: "*.*:REPLICATION SLAVE"
+            host: "%"
+            state: present
+            login_unix_socket: /var/run/mysqld/mysqld.sock
+      when: mysql_replication_role == "master"
+
+    # -------------------------------------------------------------
+    # CONFIGURACIÓN EXCLUSIVA DEL ESCLAVO (db2)
+    # -------------------------------------------------------------
+    - name: Configurar parametros del nodo Esclavo
+      block:
+        - name: Asignar ID unico al Esclavo
+          ini_file:
+            path: /etc/mysql/mariadb.conf.d/50-server.cnf
+            section: mysqld
+            option: server-id
+            value: "2"
+          notify: Reiniciar MariaDB
+
+        - name: Forzar reinicio de MariaDB en el Esclavo
+          meta: flush_handlers
+
+        - name: Configurar el apuntamiento de replica hacia el Maestro
+          mysql_replication:
+            mode: changemaster
+            master_host: "192.168.1.30"
+            master_user: replica_user
+            master_password: "password_replica_123"
+            master_log_file: "mysql-bin.000001"
+            master_log_pos: 1
+            login_unix_socket: /var/run/mysqld/mysqld.sock
+
+        - name: Iniciar el hilo de la replica (Start Slave)
+          mysql_replication:
+            mode: startslave
+            login_unix_socket: /var/run/mysqld/mysqld.sock
+      when: mysql_replication_role == "slave"
+
+  handlers:
+    - name: Reiniciar MariaDB
+      systemd:
+        name: mariadb
+        state: restarted
+# -------------------------------------------------------------
+    # MONITORIZACIÓN: CONFIGURACIÓN DE ZABBIX AGENT
+    # -------------------------------------------------------------
+    - name: Instalar Zabbix Agent
+      apt:
+        name: zabbix-agent
+        state: present
+        update_cache: yes
+
+    - name: Configurar Servidor Zabbix en el Agente
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Server='
+        line: 'Server=192.168.1.50'
+
+    - name: Configurar Servidor Zabbix Activo (Opcional)
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^ServerActive='
+        line: 'ServerActive=192.168.1.50'
+
+    - name: Configurar el Hostname en Zabbix Agent utilizando el rol de replica
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Hostname='
+        line: "Hostname=mariadb-{{ mysql_replication_role }}"
+
+    - name: Asegurar que Zabbix Agent esta corriendo y habilitado
+      systemd:
+        name: zabbix-agent
+        state: restarted
+        enabled: yes

@@ -1,0 +1,86 @@
+---
+- name: Configurar Servidores Web Ubuntu con Soporte PHP
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+
+    - name: Forzar DNS de Google de forma temporal para permitir el apt update
+      ansible.builtin.shell: |
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+      become: true
+      changed_when: false
+
+    - name: Instalar Apache y PHP
+      apt:
+        name:
+          - apache2
+          - php
+          - libapache2-mod-php
+          - php-mysql
+        state: present
+        update_cache: yes
+    
+    - name: Asegurar que Apache esté encendido y habilitado
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+
+    - name: Crear página de prueba HTML (con hostname)
+      copy:
+        content: "<h1>Hola desde {{ ansible_hostname }}</h1><p>Servidor Web Operativo</p>"
+        dest: /var/www/html/index.html
+        mode: '0644'
+
+    - name: Crear script PHP de prueba de conexión a DB
+      copy:
+        content: |
+          <?php
+          $mysqli = new mysqli("192.168.1.30", "pfg_user", "password_seguro_123", "pfg_database");
+          if ($mysqli->connect_error) {
+              die("Error de conexión: " . $mysqli->connect_error);
+          }
+          echo "Conexión exitosa a MariaDB desde " . gethostname();
+          ?>
+        dest: /var/www/html/db_test.php
+        mode: '0644'
+
+  handlers:
+    - name: Reiniciar Apache
+      service:
+        name: apache2
+        state: restarted
+
+# -------------------------------------------------------------
+    # MONITORIZACIÓN: CONFIGURACIÓN DE ZABBIX AGENT
+    # -------------------------------------------------------------
+    - name: Instalar Zabbix Agent
+      apt:
+        name: zabbix-agent
+        state: present
+        update_cache: yes
+
+    - name: Configurar Servidor Zabbix en el Agente
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Server='
+        line: 'Server=192.168.1.50'
+
+    - name: Configurar Servidor Zabbix Activo (Opcional)
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^ServerActive='
+        line: 'ServerActive=192.168.1.50'
+
+    - name: Configurar el Hostname en Zabbix Agent de forma dinamica
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Hostname='
+        line: "Hostname={{ ansible_hostname }}"
+
+    - name: Asegurar que Zabbix Agent esta corriendo y habilitado
+      systemd:
+        name: zabbix-agent
+        state: restarted
+        enabled: yes

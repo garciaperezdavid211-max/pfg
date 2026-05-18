@@ -1,0 +1,70 @@
+- name: Configurar Balanceador de Carga HAProxy en Local
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+    - name: Instalar HAProxy
+      apt:
+        name: haproxy
+        state: present
+        update_cache: yes
+
+    - name: Configurar el archivo haproxy.cfg
+      blockinfile:
+        path: /etc/haproxy/haproxy.cfg
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          frontend http_front
+              bind *:80
+              stats uri /haproxy?stats
+              default_backend http_back
+
+          backend http_back
+              balance roundrobin
+              server apache1 192.168.2.10:80 check
+              server apache2 192.168.2.11:80 check
+      notify: Reiniciar HAProxy
+
+    - name: Asegurar que HAProxy esta corriendo y habilitado
+      systemd:
+        name: haproxy
+        state: started
+        enabled: yes
+
+    # -------------------------------------------------------------
+    # MONITORIZACIÓN: CONFIGURACIÓN DE ZABBIX AGENT
+    # -------------------------------------------------------------
+    - name: Instalar Zabbix Agent
+      apt:
+        name: zabbix-agent
+        state: present
+
+    - name: Configurar Servidor Zabbix en el Agente
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Server='
+        line: 'Server=192.168.1.50'
+
+    - name: Configurar Servidor Zabbix Activo
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^ServerActive='
+        line: 'ServerActive=192.168.1.50'
+
+    - name: Configurar el Hostname en Zabbix Agent
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Hostname='
+        line: "Hostname={{ ansible_hostname }}"
+
+    - name: Asegurar que Zabbix Agent esta activo
+      systemd:
+        name: zabbix-agent
+        state: restarted
+        enabled: yes
+
+  handlers:
+    - name: Reiniciar HAProxy
+      systemd:
+        name: haproxy
+        state: restarted

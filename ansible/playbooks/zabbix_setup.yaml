@@ -1,0 +1,88 @@
+---
+# 1. CONFIGURACIÓN DEL SERVIDOR ZABBIX
+- name: Configurar Servidor Zabbix con DB Remota
+  hosts: monitoring
+  become: true
+  tasks:
+    - name: Forzar DNS de Google de forma temporal para permitir el apt update
+      ansible.builtin.shell: |
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+      changed_when: false
+
+    - name: Añadir repositorio oficial de Zabbix 7.0 (Ubuntu 24.04)
+      apt:
+        deb: https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest+ubuntu24.04_all.deb
+        state: present
+
+    - name: Instalar paquetes de Zabbix Server y Frontend
+      apt:
+        name: 
+          - zabbix-server-mysql
+          - zabbix-frontend-php
+          - zabbix-apache-conf
+          - zabbix-sql-scripts
+          - mariadb-client # Necesario para importar el esquema a la DB remota
+        state: present
+        update_cache: yes
+
+    - name: Configurar IP de la Base de Datos Remota (Primary)
+      lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: '^#? DBHost=localhost'
+        line: 'DBHost=192.168.1.30'
+      notify: Reiniciar Zabbix
+
+    - name: Configurar Password de la Base de Datos
+      lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: '^#? DBPassword='
+        line: 'DBPassword=zabbix_password_123'
+      notify: Reiniciar Zabbix
+
+    - name: Importar esquema inicial a MariaDB Remota
+      shell: |
+        zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql -h 192.168.1.30 -uzabbix -pzabbix_password_123 zabbix
+      args:
+        creates: /etc/zabbix/.schema_imported # Evita re-importar si ya existe
+      register: schema_result
+
+    - name: Crear archivo de marca para esquema importado
+      file:
+        path: /etc/zabbix/.schema_imported
+        state: touch
+      when: schema_result.changed
+
+# 2. CONFIGURACIÓN DE LOS AGENTES EN EL RESTO DE MÁQUINAS
+- name: Instalar Agente Zabbix en todos los nodos Linux
+  hosts: resto
+  become: true
+  tasks:
+    - name: Forzar DNS de Google de forma temporal para permitir el apt update
+      ansible.builtin.shell: |
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+      changed_when: false
+
+    - name: Instalar zabbix-agent
+      apt:
+        name: zabbix-agent
+        state: present
+
+    - name: Configurar IP del Servidor Zabbix en los Agentes
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Server=127.0.0.1'
+        line: 'Server=192.168.1.50'
+      notify: Reiniciar Agente
+
+  handlers:
+    - name: Reiniciar Zabbix
+      service:
+        name: zabbix-server
+        state: restarted
+        enabled: yes
+
+    - name: Reiniciar Agente
+      service:
+        name: zabbix-agent
+        state: restarted
+        enabled: yes
