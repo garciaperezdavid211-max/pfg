@@ -170,8 +170,9 @@ resource "proxmox_virtual_environment_file" "apache_init_script" {
     runcmd:
       - /tmp/deploy.sh
     EOF
-  }
+    
     file_name = "apache-init.sh" 
+  }
   }
 # 2. Apache Web Servers
 resource "proxmox_virtual_environment_vm" "apache1" {
@@ -330,7 +331,7 @@ resource "proxmox_virtual_environment_file" "zabbix_init_script" {
   datastore_id = "local" # ◄ Tu almacenamiento local que ya tiene snippets activos
   node_name    = "proxmox"
 
-  ssource_raw {
+  source_raw {
     data = <<-EOF
     #cloud-config
     write_files:
