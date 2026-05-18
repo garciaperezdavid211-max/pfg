@@ -6,6 +6,28 @@ terraform {
     }
   }
 }
+resource "proxmox_virtual_environment_file" "mariadb_script_master" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "proxmox"
+
+  source_raw {
+    data = <<-EOF
+    #!/bin/bash
+    until ping -c 1 github.com &>/dev/null; do sleep 2; done
+    apt-get update
+    apt-get install -y software-properties-common git python3-mysqldb
+    add-apt-repository --yes --update ppa:ansible/ansible
+    apt-get install -y ansible
+    cd /tmp
+    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+    cd config-repo/ansible/playbooks
+    ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=master"
+    EOF
+
+    file_name = "mariadb-master-init.sh"
+  }
+}
 # 1. MariaDB Servers (2 máquinas)
 resource "proxmox_virtual_environment_vm" "mariadb_server1" {
   name      = "mariadb-1"
@@ -42,18 +64,29 @@ resource "proxmox_virtual_environment_vm" "mariadb_server1" {
         gateway = "192.168.1.1"
       }
     }
-    user_data = <<-EOF
+    user_data_file_id = proxmox_virtual_environment_file.mariadb_script_master.id
+  }
+}
+resource "proxmox_virtual_environment_file" "mariadb_script_slave" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "proxmox"
+
+  source_raw {
+    data = <<-EOF
     #!/bin/bash
-    until ping -c 1 gitlab.com &>/dev/null; do sleep 2; done
+    until ping -c 1 github.com &>/dev/null; do sleep 2; done
     apt-get update
     apt-get install -y software-properties-common git python3-mysqldb
     add-apt-repository --yes --update ppa:ansible/ansible
     apt-get install -y ansible
     cd /tmp
-    git clone https://gitlab.com/TU_USUARIO/TU_REPOSITORIO.git ansible-config
-    cd config-repo/ansible
-    ansible-playbook mariadb.yaml -e "mysql_replication_role=master"
+    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+    cd config-repo/ansible/playbooks
+    ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=slave"
     EOF
+
+    file_name = "mariadb-slave-init.sh"
   }
 }
 resource "proxmox_virtual_environment_vm" "mariadb_server2" {
@@ -91,22 +124,34 @@ resource "proxmox_virtual_environment_vm" "mariadb_server2" {
         gateway = "192.168.1.1"
       }
     }
-    user_data = <<-EOF
+    user_data_file_id = proxmox_virtual_environment_file.mariadb_script_slave.id
+  }
+  depends_on = [ proxmox_virtual_environment_vm.mariadb_server1 ]
+}
+
+resource "proxmox_virtual_environment_file" "apache_script" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "proxmox"
+
+  source_raw {
+    data = <<-EOF
     #!/bin/bash
-    until ping -c 1 gitlab.com &>/dev/null; do sleep 2; done
+    until ping -c 1 github.com &>/dev/null; do sleep 2; done
     apt-get update
     apt-get install -y software-properties-common git python3-mysqldb
     add-apt-repository --yes --update ppa:ansible/ansible
     apt-get install -y ansible
     cd /tmp
-    git clone https://gitlab.com/TU_USUARIO/TU_REPOSITORIO.git ansible-config
-    cd config-repo/ansible
-    ansible-playbook mariadb.yaml -e "mysql_replication_role=slave"
+    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+    cd config-repo/ansible/playbooks
+    ansible-playbook apache_setup.yaml
+     EOF"
     EOF
-  }
-  depends_on = [ proxmox_virtual_environment_vm.mariadb_server1 ]
-}
 
+    file_name = "apache-init.sh"
+  }
+}
 # 2. Apache Web Servers
 resource "proxmox_virtual_environment_vm" "apache1" {
   name      = "Apache-1"
@@ -146,18 +191,7 @@ resource "proxmox_virtual_environment_vm" "apache1" {
         gateway = "192.168.2.1"
       }
     }
-    user_data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 gitlab.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://gitlab.com/TU_USUARIO/TU_REPOSITORIO.git ansible-config
-    cd config-repo/ansible
-    ansible-playbook apache.yaml
-    EOF
+    user_data_file_id = proxmox_virtual_environment_file.apache_script.id
   }
   depends_on = [ proxmox_virtual_environment_vm.mariadb_server2 ]
 }
@@ -199,20 +233,32 @@ resource "proxmox_virtual_environment_vm" "apache2" {
         gateway = "192.168.2.1"
       }
     }
-    user_data = <<-EOF
+    user_data_file_id = proxmox_virtual_environment_file.apache_script.id
+  }
+  depends_on = [ proxmox_virtual_environment_vm.apache1 ]
+}
+resource "proxmox_virtual_environment_file" "haproxy_script" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "proxmox"
+
+  source_raw {
+    data = <<-EOF
     #!/bin/bash
-    until ping -c 1 gitlab.com &>/dev/null; do sleep 2; done
+    until ping -c 1 github.com &>/dev/null; do sleep 2; done
     apt-get update
-    apt-get install -y software-properties-common git
+    apt-get install -y software-properties-common git python3-mysqldb
     add-apt-repository --yes --update ppa:ansible/ansible
     apt-get install -y ansible
     cd /tmp
-    git clone https://gitlab.com/TU_USUARIO/TU_REPOSITORIO.git ansible-config
-    cd config-repo/ansible
-    ansible-playbook apache.yaml
+    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+    cd config-repo/ansible/playbooks
+    ansible-playbook haproxy_setup.yaml
+     EOF"
     EOF
+
+    file_name = "haproxy-init.sh"
   }
-  depends_on = [ proxmox_virtual_environment_vm.apache1 ]
 }
 # 3. HAProxy
 resource "proxmox_virtual_environment_vm" "haproxy" {
@@ -247,22 +293,33 @@ resource "proxmox_virtual_environment_vm" "haproxy" {
         gateway = "192.168.2.1"
       }
     }
-    user_data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 gitlab.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git python3-pip
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://gitlab.com/TU_USUARIO/TU_REPOSITORIO.git ansible-config
-    cd config-repo/ansible
-    ansible-playbook haproxy.yaml
-    EOF
+    user_data_file_id = proxmox_virtual_environment_file.haproxy_script.id
   }
   depends_on = [ proxmox_virtual_environment_vm.apache2 ]
 }
+resource "proxmox_virtual_environment_file" "zabbix_script" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = "proxmox"
 
+  source_raw {
+    data = <<-EOF
+    #!/bin/bash
+    until ping -c 1 github.com &>/dev/null; do sleep 2; done
+    apt-get update
+    apt-get install -y software-properties-common git python3-mysqldb
+    add-apt-repository --yes --update ppa:ansible/ansible
+    apt-get install -y ansible
+    cd /tmp
+    git clone https://github.com/garciaperezdavid211-max/pfg.git config-repo
+    cd config-repo/ansible/playbooks
+    ansible-playbook zabbix_setup.yaml
+     EOF"
+    EOF
+
+    file_name = "zabbix-init.sh"
+  }
+}
 # 4. Zabbix Server
 resource "proxmox_virtual_environment_vm" "zabbix_server" {
   name      = "zabbix-server"
@@ -299,18 +356,7 @@ resource "proxmox_virtual_environment_vm" "zabbix_server" {
         gateway = "192.168.1.1"
       }
     }
-    user_data = <<-EOF
-    #!/bin/bash
-    until ping -c 1 gitlab.com &>/dev/null; do sleep 2; done
-    apt-get update
-    apt-get install -y software-properties-common git python3-mysqldb
-    add-apt-repository --yes --update ppa:ansible/ansible
-    apt-get install -y ansible
-    cd /tmp
-    git clone https://gitlab.com/TU_USUARIO/TU_REPOSITORIO.git ansible-config
-    cd config-repo/ansible
-    ansible-playbook zabbix_server.yaml
-    EOF
+    user_data_file_id = proxmox_virtual_environment_file.zabbix_script.id
   }
   depends_on = [ proxmox_virtual_environment_vm.haproxy ]
 }
