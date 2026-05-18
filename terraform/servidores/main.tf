@@ -13,6 +13,7 @@ resource "proxmox_virtual_environment_file" "mariadb_master_script" {
 
   source_raw {
     data = <<-EOF
+    instance-id: "id-${timestamp()}"
     #cloud-config
     write_files:
       - path: /tmp/deploy.sh
@@ -82,6 +83,7 @@ resource "proxmox_virtual_environment_file" "mariadb_slave_script" {
 
   source_raw {
     data = <<-EOF
+    instance-id: "id-${timestamp()}"
     #cloud-config
     write_files:
       - path: /tmp/deploy.sh
@@ -151,6 +153,7 @@ resource "proxmox_virtual_environment_file" "apache_init_script" {
 
   source_raw {
     data = <<-EOF
+    instance-id: "id-${timestamp()}"
     #cloud-config
     write_files:
       - path: /tmp/deploy.sh
@@ -266,6 +269,7 @@ resource "proxmox_virtual_environment_file" "haproxy_init_script" {
 
   source_raw {
     data = <<-EOF
+    instance-id: "id-${timestamp()}"
     #cloud-config
     write_files:
       - path: /tmp/deploy.sh
@@ -333,6 +337,7 @@ resource "proxmox_virtual_environment_file" "zabbix_init_script" {
 
   source_raw {
     data = <<-EOF
+    instance-id: "id-${timestamp()}"
     #cloud-config
     write_files:
       - path: /tmp/deploy.sh
