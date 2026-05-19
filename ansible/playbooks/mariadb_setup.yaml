@@ -53,7 +53,7 @@
         - name: Crear usuario de replica para el esclavo
           mysql_user:
             name: replica_user
-            password: "password_replica_123"
+            password: "123"
             priv: "*.*:REPLICATION SLAVE"
             host: "%"
             state: present
