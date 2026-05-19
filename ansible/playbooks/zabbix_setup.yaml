@@ -1,7 +1,7 @@
 ---
 # 1. CONFIGURACIÓN DEL SERVIDOR ZABBIX
 - name: Configurar Servidor Zabbix con DB Remota
-  hosts: monitoring
+  hosts: localhost
   become: true
   tasks:
     - name: Forzar DNS de Google de forma temporal para permitir el apt update
@@ -25,64 +25,24 @@
         state: present
         update_cache: yes
 
-    - name: Configurar IP de la Base de Datos Remota (Primary)
-      lineinfile:
-        path: /etc/zabbix/zabbix_server.conf
-        regexp: '^#? DBHost=localhost'
-        line: 'DBHost=192.168.1.30'
-      notify: Reiniciar Zabbix
+    ---
+- name: Lanzar comandos manuales para crear la DB de Zabbix
+  hosts: localhost
+  become: yes
 
-    - name: Configurar Password de la Base de Datos
-      lineinfile:
-        path: /etc/zabbix/zabbix_server.conf
-        regexp: '^#? DBPassword='
-        line: 'DBPassword=zabbix_password_123'
-      notify: Reiniciar Zabbix
-
-    - name: Importar esquema inicial a MariaDB Remota
-      shell: |
-        zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql -h 192.168.1.30 -uzabbix -pzabbix_password_123 zabbix
-      args:
-        creates: /etc/zabbix/.schema_imported # Evita re-importar si ya existe
-      register: schema_result
-
-    - name: Crear archivo de marca para esquema importado
-      file:
-        path: /etc/zabbix/.schema_imported
-        state: touch
-      when: schema_result.changed
-
-# 2. CONFIGURACIÓN DE LOS AGENTES EN EL RESTO DE MÁQUINAS
-- name: Instalar Agente Zabbix en todos los nodos Linux
-  hosts: resto
-  become: true
   tasks:
-    - name: Forzar DNS de Google de forma temporal para permitir el apt update
-      ansible.builtin.shell: |
-        echo "nameserver 8.8.8.8" > /etc/resolv.conf
-      changed_when: false
+    - name: 1. Ejecutar el CREATE DATABASE a mano
+      shell: |
+        mysql -u root -e "CREATE DATABASE IF NOT EXISTS zabbix CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;"
 
-    - name: Instalar zabbix-agent
-      apt:
-        name: zabbix-agent
-        state: present
+    - name: 2. Ejecutar el CREATE USER a mano (Contraseña: zabbix123)
+      shell: |
+        mysql -u root -e "CREATE USER IF NOT EXISTS 'zabbix'@'%' IDENTIFIED BY 'zabbix123';"
 
-    - name: Configurar IP del Servidor Zabbix en los Agentes
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Server=127.0.0.1'
-        line: 'Server=192.168.1.50'
-      notify: Reiniciar Agente
+    - name: 3. Asignar todos los PRIVILEGES a mano
+      shell: |
+        mysql -u root -e "GRANT ALL PRIVILEGES ON zabbix.* TO 'zabbix'@'%';"
 
-  handlers:
-    - name: Reiniciar Zabbix
-      service:
-        name: zabbix-server
-        state: restarted
-        enabled: yes
-
-    - name: Reiniciar Agente
-      service:
-        name: zabbix-agent
-        state: restarted
-        enabled: yes
+    - name: 4. Lanzar el FLUSH PRIVILEGES definitivo
+      shell: |
+        mysql -u root -e "FLUSH PRIVILEGES;"
