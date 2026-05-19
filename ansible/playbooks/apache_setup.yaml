@@ -26,7 +26,7 @@
 
     - name: Crear página de prueba HTML (con hostname)
       copy:
-        content: "<h1>Hola desde {{ ansible_hostname }} (Entorno de David)</h1><p>Servidor Web Operativo</p>"
+        content: "<h1>Hola desde {{ ansible_hostname }} (Entorno de David)</h1>"
         dest: /var/www/html/index.html
         mode: '0644'
 
