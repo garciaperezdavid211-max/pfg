@@ -97,35 +97,4 @@
       systemd:
         name: mariadb
         state: restarted
-# -------------------------------------------------------------
-    # MONITORIZACIÓN: CONFIGURACIÓN DE ZABBIX AGENT
-    # -------------------------------------------------------------
-    - name: Instalar Zabbix Agent
-      apt:
-        name: zabbix-agent
-        state: present
-        update_cache: yes
 
-    - name: Configurar Servidor Zabbix en el Agente
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Server='
-        line: 'Server=192.168.1.50'
-
-    - name: Configurar Servidor Zabbix Activo (Opcional)
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^ServerActive='
-        line: 'ServerActive=192.168.1.50'
-
-    - name: Configurar el Hostname en Zabbix Agent utilizando el rol de replica
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Hostname='
-        line: "Hostname=mariadb-{{ mysql_replication_role }}"
-
-    - name: Asegurar que Zabbix Agent esta corriendo y habilitado
-      systemd:
-        name: zabbix-agent
-        state: restarted
-        enabled: yes
