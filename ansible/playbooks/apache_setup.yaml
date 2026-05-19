@@ -11,13 +11,10 @@
       become: true
       changed_when: false
 
-    - name: Instalar Apache y PHP
+    - name: Instalar Apache
       apt:
         name:
           - apache2
-          - php
-          - libapache2-mod-php
-          - php-mysql
         state: present
         update_cache: yes
     
@@ -29,21 +26,8 @@
 
     - name: Crear página de prueba HTML (con hostname)
       copy:
-        content: "<h1>Hola desde {{ ansible_hostname }}</h1><p>Servidor Web Operativo</p>"
+        content: "<h1>Hola desde {{ ansible_hostname }} (Entorno de David)</h1><p>Servidor Web Operativo</p>"
         dest: /var/www/html/index.html
-        mode: '0644'
-
-    - name: Crear script PHP de prueba de conexión a DB
-      copy:
-        content: |
-          <?php
-          $mysqli = new mysqli("192.168.1.30", "pfg_user", "password_seguro_123", "pfg_database");
-          if ($mysqli->connect_error) {
-              die("Error de conexión: " . $mysqli->connect_error);
-          }
-          echo "Conexión exitosa a MariaDB desde " . gethostname();
-          ?>
-        dest: /var/www/html/db_test.php
         mode: '0644'
 
   handlers:
@@ -52,35 +36,3 @@
         name: apache2
         state: restarted
 
-# -------------------------------------------------------------
-    # MONITORIZACIÓN: CONFIGURACIÓN DE ZABBIX AGENT
-    # -------------------------------------------------------------
-    - name: Instalar Zabbix Agent
-      apt:
-        name: zabbix-agent
-        state: present
-        update_cache: yes
-
-    - name: Configurar Servidor Zabbix en el Agente
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Server='
-        line: 'Server=192.168.1.50'
-
-    - name: Configurar Servidor Zabbix Activo (Opcional)
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^ServerActive='
-        line: 'ServerActive=192.168.1.50'
-
-    - name: Configurar el Hostname en Zabbix Agent de forma dinamica
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Hostname='
-        line: "Hostname={{ ansible_hostname }}"
-
-    - name: Asegurar que Zabbix Agent esta corriendo y habilitado
-      systemd:
-        name: zabbix-agent
-        state: restarted
-        enabled: yes
