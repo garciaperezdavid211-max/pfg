@@ -1,0 +1,5 @@
+proxmox_api_url = "https://192.168.0.5:8006/api2/json"
+proxmox_api_token_id = "terraform@pve@pam!terraform-token"
+proxmox_api_token_secret = "c24dfc23-8ace-43dd-968a-10c254733c80"
+target_node = "proxmox"
+contraseña_proxmox = "Templario066862"

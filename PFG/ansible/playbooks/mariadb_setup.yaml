@@ -1,0 +1,70 @@
+---
+- name: Configuración Completa y Automatizada de MariaDB (Maestro/Esclavo)
+  hosts: localhost
+  connection: local
+  become: true
+
+  tasks:
+    # =================================================================
+    # 1. CONFIGURACIÓN COMÚN (Para ambas máquinas)
+    # =================================================================
+    - name: "[COMÚN] Asegurar que MariaDB escucha en todas las interfaces (0.0.0.0)"
+      lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^bind-address'
+        line: 'bind-address = 0.0.0.0'
+      notify: Reiniciar MariaDB
+
+    # =================================================================
+    # 2. CONFIGURACIÓN ESPECÍFICA DEL MAESTRO
+    # =================================================================
+    - name: "[MAESTRO] Configurar ID de Servidor Único (Server ID = 1)"
+      lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^#?server-id'
+        line: 'server-id = 1'
+      when: mysql_replication_role == 'master'
+      notify: Reiniciar MariaDB
+
+    - name: "[MAESTRO] Activar el Log Binario (Imprescindible para réplica)"
+      lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^#?log_bin'
+        line: 'log_bin = /var/log/mysql/mysql-bin.log'
+      when: mysql_replication_role == 'master'
+      notify: Reiniciar MariaDB
+
+    - name: "[MAESTRO] Crear el usuario de réplica por primera vez"
+      shell: |
+        mysql -u root -e "CREATE USER IF NOT EXISTS 'replica_user'@'%' IDENTIFIED BY '123';"
+        mysql -u root -e "GRANT REPLICATION SLAVE ON *.* TO 'replica_user'@'%';"
+        mysql -u root -e "FLUSH PRIVILEGES;"
+      when: mysql_replication_role == 'master'
+
+    # =================================================================
+    # 3. CONFIGURACIÓN ESPECÍFICA DEL ESCLAVO
+    # =================================================================
+    - name: "[ESCLAVO] Configurar ID de Servidor Único (Server ID = 2)"
+      lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^#?server-id'
+        line: 'server-id = 2'
+      when: mysql_replication_role == 'slave'
+      notify: Reiniciar MariaDB
+
+    - name: "[ESCLAVO] Forzar la lectura del archivo de configuración antes de enlazar"
+      meta: flush_handlers
+
+    - name: "[ESCLAVO] Enlazar con el maestro por primera vez"
+      shell: |
+        mysql -u root -e "STOP SLAVE;"
+        mysql -u root -e "CHANGE MASTER TO MASTER_HOST='192.168.1.30', MASTER_USER='replica_user', MASTER_PASSWORD='123', MASTER_LOG_FILE='mysql-bin.000001', MASTER_LOG_POS=328;"
+        mysql -u root -e "START SLAVE;"
+      when: mysql_replication_role == 'slave'
+
+  # Handler para reiniciar el servicio solo si cambia algún archivo de configuración (.cnf)
+  handlers:
+    - name: Reiniciar MariaDB
+      service:
+        name: mariadb
+        state: restarted
