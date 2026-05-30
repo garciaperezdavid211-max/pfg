@@ -57,12 +57,6 @@ fi
 # Esperamos a que responda internet con la nueva IP instalada
 until ping -c 1 github.com &>/dev/null; do sleep 3; done
 
-# Actualizamos e instalamos Git y Ansible
-apt-get update
-apt-get install -y software-properties-common git python3-mysqldb
-add-apt-repository --yes --update ppa:ansible/ansible
-apt-get install -y ansible
-
 # Clonamos tu repositorio de GitHub
 cd /tmp
 rm -rf config-repo
