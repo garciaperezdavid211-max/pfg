@@ -1,70 +1,171 @@
 ---
-- name: Configuración Completa y Automatizada de MariaDB (Maestro/Esclavo)
+- name: Despliegue Completo de Zabbix Server 7.0 con BD Independiente
   hosts: localhost
   connection: local
   become: true
 
   tasks:
     # =================================================================
-    # 1. CONFIGURACIÓN COMÚN (Para ambas máquinas)
+    # 1. INSTALACIÓN DE MARIADB LOCAL
     # =================================================================
-    - name: "[COMÚN] Asegurar que MariaDB escucha en todas las interfaces (0.0.0.0)"
-      lineinfile:
-        path: /etc/mysql/mariadb.conf.d/50-server.cnf
-        regexp: '^bind-address'
-        line: 'bind-address = 0.0.0.0'
-      notify: Reiniciar MariaDB
+    - name: "[ZABBIX-BD] Instalar el servidor MariaDB local para Zabbix"
+      apt:
+        name:
+          - mariadb-server
+          - mariadb-client
+        state: present
+        update_cache: yes
 
-    # =================================================================
-    # 2. CONFIGURACIÓN ESPECÍFICA DEL MAESTRO
-    # =================================================================
-    - name: "[MAESTRO] Configurar ID de Servidor Único (Server ID = 1)"
-      lineinfile:
-        path: /etc/mysql/mariadb.conf.d/50-server.cnf
-        regexp: '^#?server-id'
-        line: 'server-id = 1'
-      when: mysql_replication_role == 'master'
-      notify: Reiniciar MariaDB
-
-    - name: "[MAESTRO] Activar el Log Binario (Imprescindible para réplica)"
-      lineinfile:
-        path: /etc/mysql/mariadb.conf.d/50-server.cnf
-        regexp: '^#?log_bin'
-        line: 'log_bin = /var/log/mysql/mysql-bin.log'
-      when: mysql_replication_role == 'master'
-      notify: Reiniciar MariaDB
-
-    - name: "[MAESTRO] Crear el usuario de réplica por primera vez"
-      shell: |
-        mysql -u root -e "CREATE USER IF NOT EXISTS 'replica_user'@'%' IDENTIFIED BY '123';"
-        mysql -u root -e "GRANT REPLICATION SLAVE ON *.* TO 'replica_user'@'%';"
-        mysql -u root -e "FLUSH PRIVILEGES;"
-      when: mysql_replication_role == 'master'
-
-    # =================================================================
-    # 3. CONFIGURACIÓN ESPECÍFICA DEL ESCLAVO
-    # =================================================================
-    - name: "[ESCLAVO] Configurar ID de Servidor Único (Server ID = 2)"
-      lineinfile:
-        path: /etc/mysql/mariadb.conf.d/50-server.cnf
-        regexp: '^#?server-id'
-        line: 'server-id = 2'
-      when: mysql_replication_role == 'slave'
-      notify: Reiniciar MariaDB
-
-    - name: "[ESCLAVO] Forzar la lectura del archivo de configuración antes de enlazar"
-      meta: flush_handlers
-
-    - name: "[ESCLAVO] Enlazar con el maestro por primera vez"
-      shell: |
-        mysql -u root -e "STOP SLAVE;"
-        mysql -u root -e "CHANGE MASTER TO MASTER_HOST='192.168.1.30', MASTER_USER='replica_user', MASTER_PASSWORD='123', MASTER_LOG_FILE='mysql-bin.000001', MASTER_LOG_POS=328;"
-        mysql -u root -e "START SLAVE;"
-      when: mysql_replication_role == 'slave'
-
-  # Handler para reiniciar el servicio solo si cambia algún archivo de configuración (.cnf)
-  handlers:
-    - name: Reiniciar MariaDB
+    - name: "[ZABBIX-BD] Asegurar que el MariaDB local está corriendo"
       service:
         name: mariadb
+        state: started
+        enabled: yes
+
+    # =================================================================
+    # 2. INSTALACIÓN DEL REPOSITORIO Y PAQUETES DE ZABBIX 7.0
+    # =================================================================
+    - name: "[ZABBIX] Descargar el paquete del repositorio oficial de Zabbix 7.0"
+      get_url:
+        url: https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest+ubuntu22.04_all.deb
+        dest: /tmp/zabbix-release.deb
+
+    - name: "[ZABBIX] Instalar el paquete del repositorio"
+      apt:
+        deb: /tmp/zabbix-release.deb
+
+    - name: "[ZABBIX] Actualizar caché de APT e instalar Zabbix Server y Frontend"
+      apt:
+        name:
+          - zabbix-server-mysql
+          - zabbix-frontend-php
+          - zabbix-apache-conf
+          - zabbix-sql-scripts
+        state: present
+        update_cache: yes
+
+    # =================================================================
+    # 3. CREACIÓN DE LA BD LOCAL Y USUARIO PARA ZABBIX
+    # =================================================================
+    - name: "[ZABBIX-BD] Crear la base de datos independiente para Zabbix"
+      shell: |
+        mysql -u root -e "CREATE DATABASE IF NOT EXISTS zabbix CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;"
+
+    - name: "[ZABBIX-BD] Crear el usuario local de zabbix y darle privilegios"
+      shell: |
+        mysql -u root -e "CREATE USER IF NOT EXISTS 'zabbix'@'localhost' IDENTIFIED BY 'zabbix123';"
+        mysql -u root -e "GRANT ALL PRIVILEGES ON zabbix.* TO 'zabbix'@'localhost';"
+        mysql -u root -e "FLUSH PRIVILEGES;"
+
+    # =================================================================
+    # 4. IMPORTACIÓN DEL ESQUEMA SQL EN LOCAL
+    # =================================================================
+    - name: "[ZABBIX-BD] Importar el esquema SQL inicial en el MariaDB local"
+      shell: |
+        zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql -u zabbix -pzabbix123 zabbix
+      args:
+        creates: /etc/zabbix/.schema_imported  # Evita que se repita si ya se hizo una vez
+      register: db_import
+
+    - name: "[ZABBIX-BD] Crear archivo testigo de la importación"
+      file:
+        path: /etc/zabbix/.schema_imported
+        state: touch
+      when: db_import.changed
+
+    # =================================================================
+    # 5. CONFIGURACIÓN DEL ARCHIVO ZABBIX_SERVER.CONF
+    # =================================================================
+    - name: "[ZABBIX] Configurar el Host de la BD como localhost"
+      lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: '^#? DBHost='
+        line: 'DBHost=localhost'
+      notify: Reiniciar Servicios Zabbix
+
+    - name: "[ZABBIX] Configurar la contraseña de la BD local"
+      lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: '^#? DBPassword='
+        line: 'DBPassword=zabbix123'
+      notify: Reiniciar Servicios Zabbix
+
+    # =================================================================
+    # 6. LEVANTAR SERVICIOS
+    # =================================================================
+    - name: "[ZABBIX] Asegurar que Zabbix Server y Apache están activos"
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - zabbix-server
+        - apache2
+
+  # Handlers para reiniciar el servicio si cambia la contraseña o host
+  handlers:
+    - name: Reiniciar Servicios Zabbix
+      service:
+        name: "{{ item }}"
         state: restarted
+      loop:
+        - zabbix-server
+        - apache2
+    # =================================================================
+    # 7. AUTOMATIZAR E INMUNIZAR EL ASISTENTE WEB (FRONTEND)
+    # =================================================================
+    - name: "[ZABBIX-WEB] Asegurar que existe el directorio de configuración web"
+      file:
+        path: /etc/zabbix/web
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: "[ZABBIX-WEB] Inyectar el archivo de configuración zabbix.conf.php"
+      copy:
+        dest: /etc/zabbix/web/zabbix.conf.php
+        content: |
+          <?php
+          // Archivo generado automáticamente por Ansible para saltar el Wizard
+          global $DB;
+
+          $DB['TYPE']     = 'MYSQL';
+          $DB['SERVER']   = 'localhost';
+          $DB['PORT']     = '0';
+          $DB['DATABASE'] = 'zabbix';
+          $DB['USER']     = 'zabbix';
+          $DB['PASSWORD'] = 'zabbix123';
+          $DB['SCHEMA']   = '';
+          $DB['ENCRYPTION'] = false;
+
+          $ZBX_SERVER      = 'localhost';
+          $ZBX_SERVER_PORT = '10051';
+          $ZBX_SERVER_NAME = 'Plataforma PFG David';
+
+          $IMAGE_FORMAT_DEFAULT = IMAGE_FORMAT_PNG;
+        owner: www-data
+        group: www-data
+        mode: '0600'
+      notify: Reiniciar Servicios Zabbix
+
+      # =================================================================
+    # 7. LEVANTAR SERVICIOS
+    # =================================================================
+    - name: "[ZABBIX] Asegurar que Zabbix Server y Apache están activos"
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - zabbix-server
+        - apache2
+
+      handlers:
+    - name: Reiniciar Servicios Zabbix
+      service:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - zabbix-server
+        - apache2
