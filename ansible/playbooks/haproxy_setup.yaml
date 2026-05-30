@@ -1,31 +1,73 @@
-- name: Configurar Balanceador de Carga HAProxy en Local
+---
+- name: Despliegue y Configuración del Balanceador HAProxy (Local)
   hosts: localhost
   connection: local
   become: true
+
   tasks:
-    - name: Instalar HAProxy
+    # =================================================================
+    # 1. INSTALACIÓN DE HAPROXY
+    # =================================================================
+    - name: "[BALANCEADOR] Instalar el paquete HAProxy"
       apt:
         name: haproxy
         state: present
         update_cache: yes
 
-    - name: Configurar el archivo haproxy.cfg
-      blockinfile:
-        path: /etc/haproxy/haproxy.cfg
-        marker: "# {mark} ANSIBLE MANAGED BLOCK"
-        block: |
+    # =================================================================
+    # 2. CONFIGURACIÓN DEL ARCHIVO DE BALANCEDO (haproxy.cfg)
+    # =================================================================
+    - name: "[BALANCEADOR] Escribir el archivo de configuración haproxy.cfg"
+      copy:
+        dest: /etc/haproxy/haproxy.cfg
+        content: |
+          global
+              log /dev/log local0
+              log /dev/log local1 notice
+              chroot /var/lib/haproxy
+              user haproxy
+              group haproxy
+              daemon
+
+          defaults
+              log     global
+              mode    http
+              option  httplog
+              option  dontlognull
+              timeout connect 5000
+              timeout client  50000
+              timeout server  50000
+
+          # FRONTEND: Por dónde entra el tráfico (Puerto 80 de cara al público)
           frontend http_front
               bind *:80
+              stats uri /haproxy?stats  # Panel de estadísticas web secreto
               default_backend http_back
 
+          # BACKEND: A qué servidores Apache les manda la carga
           backend http_back
               balance roundrobin
-              server apache1 192.168.2.10:80 check
-              server apache2 192.168.2.11:80 check
+              option httpchk GET /index.php
+              # Aquí definimos tus servidores web con IPs estáticas (cámbialas por las tuyas)
+              server apache-1 192.168.2.10:80 check
+              server apache-2 192.168.2.11:80 check
+        owner: root
+        group: root
+        mode: '0644'
       notify: Reiniciar HAProxy
 
-    - name: Asegurar que HAProxy esta corriendo y habilitado
-      systemd:
+    # =================================================================
+    # 3. ASEGURAR EL SERVICIO
+    # =================================================================
+    - name: "[BALANCEADOR] Asegurar que HAProxy está iniciado y habilitado"
+      service:
         name: haproxy
         state: started
         enabled: yes
+
+  # Handler para aplicar los cambios solo si se modifica el archivo de configuración
+  handlers:
+    - name: Reiniciar HAProxy
+      service:
+        name: haproxy
+        state: restarted
