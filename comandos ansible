@@ -1,6 +1,0 @@
-ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=master"
-ansible-playbook mariadb_setup.yaml -e "mysql_replication_role=slave"
-ansible-playbook apache_setup.yaml
-ansible-playbook haproxy_setup.yaml
-ansible-playbook zabbix_setup.yaml
-
