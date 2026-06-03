@@ -1,0 +1,57 @@
+---
+- name: Despliegue y Configuración de Servidores Web Apache (AWS)
+  hosts: web
+  become: true
+
+  tasks:
+    # =================================================================
+    # 1. INSTALACIÓN DE PAQUETES
+    # =================================================================
+    - name: "[COMÚN] Instalar Apache2 y PHP con sus extensiones necesarias"
+      apt:
+        name:
+          - apache2
+          - php
+          - libapache2-mod-php
+          - php-xml
+          - php-mbstring
+        state: present
+        update_cache: yes
+
+    # =================================================================
+    # 2. CONFIGURACIÓN DEL CONTENIDO WEB
+    # =================================================================
+    - name: "[COMÚN] Habilitar el módulo rewrite de Apache"
+      shell: a2enmod rewrite
+      
+    - name: "Forzar reinicio de Apache2"
+      service:
+        name: apache2
+        state: restarted
+
+    - name: "[COMÚN] Borrar el index.html por defecto de Apache"
+      file:
+        path: /var/www/html/index.html
+        state: absent
+
+    - name: "[DINÁMICO] Crear un archivo index.php que muestre el Hostname de la máquina"
+      copy:
+        dest: /var/www/html/index.php
+        content: |
+          <?php
+          echo "<h1>Bienvenido a la Plataforma de Alta Disponibilidad de David</h1>";
+          echo "<h3>Servidor Web actual: " . gethostname() . "</h3>";
+          ?>
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    # =================================================================
+    # 3. ASEGURAR EL SERVICIO
+    # =================================================================
+    - name: "[COMÚN] Asegurar que Apache2 está arrancado y activo en el inicio"
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+      notify: reiniciar

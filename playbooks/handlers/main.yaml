@@ -1,0 +1,10 @@
+---
+- name: reiniciar
+  service:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - apache2
+    - mariadb
+    - zabbix-agent
+    - haproxy

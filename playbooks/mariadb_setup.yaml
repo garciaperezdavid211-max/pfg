@@ -1,0 +1,101 @@
+---
+# =================================================================
+# 1. INSTALACIÓN Y CONFIGURACIÓN COMÚN EN AMBOS SERVIDORES (MAESTRO Y ESCLAVO)
+# =================================================================
+- name: "Instalación base de MariaDB en todo el clúster de BD"
+  hosts: db
+  become: true
+  tasks:
+    - name: "[COMÚN] Actualizar los repositorios estables de Ubuntu"
+      apt:
+        update_cache: yes
+
+    - name: "[COMÚN] Instalar MariaDB Server y dependencias de Python"
+      apt:
+        name:
+          - mariadb-server
+          - python3-mysqldb  # Requisito obligatorio para que Ansible gestione MySQL
+        state: present
+
+    - name: "[COMÚN] Permitir conexiones externas en MariaDB (Cambiar bind-address a 0.0.0.0)"
+      ansible.builtin.lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^bind-address'
+        line: 'bind-address            = 0.0.0.0'
+      notify: Reiniciar MariaDB
+
+  handlers:
+    - name: Reiniciar MariaDB
+      service:
+        name: mariadb
+        state: restarted
+
+# =================================================================
+# 2. CONFIGURACIÓN EXCLUSIVA DEL NODO MAESTRO (mariadb-1)
+# =================================================================
+- name: "[MAESTRO] Configurar logs binarios y usuario de replicación"
+  hosts: db[0]  # Apunta al primer nodo (mariadb-1)
+  become: true
+  tasks:
+    - name: "[MAESTRO] Configurar ID de servidor único (Server ID = 1)"
+      ansible.builtin.lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^#?server-id'
+        line: 'server-id                = 1'
+
+    - name: "[MAESTRO] Activar el Log Binario (Requisito para réplica)"
+      ansible.builtin.lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^#?log_bin'
+        line: 'log_bin                 = /var/log/mysql/mariadb-bin'
+
+    - name: "[MAESTRO] Forzar reinicio para aplicar cambios en la configuración de red y logs"
+      service:
+        name: mariadb
+        state: restarted
+
+    - name: "[MAESTRO] Crear el usuario replica_user con acceso a toda la VPC"
+      community.mysql.mysql_user:
+        name: replica_user
+        password: tu_contraseña_segura
+        host: "%"
+        priv: "*.*:REPLICATION SLAVE"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+# =================================================================
+# 3. CONFIGURACIÓN EXCLUSIVA DEL NODO ESCLAVO (mariadb-2)
+# =================================================================
+- name: "[ESCLAVO] Vincular y arrancar la réplica en MariaDB 2"
+  hosts: db[1]  # Apunta al segundo nodo (mariadb-2)
+  become: true
+  tasks:
+    - name: "[ESCLAVO] Configurar ID de servidor único (Server ID = 2)"
+      ansible.builtin.lineinfile:
+        path: /etc/mysql/mariadb.conf.d/50-server.cnf
+        regexp: '^#?server-id'
+        line: 'server-id                = 2'
+
+    - name: "[ESCLAVO] Forzar reinicio para aplicar los cambios de red e ID"
+      service:
+        name: mariadb
+        state: restarted
+
+    - name: "[ESCLAVO] Detener la réplica por seguridad si estuviera iniciada"
+      community.mysql.mysql_replication:
+        mode: stopreplica
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+      ignore_errors: true
+
+    - name: "[ESCLAVO] Configurar los parámetros de conexión apuntando al Maestro (Sintaxis Actualizada)"
+      community.mysql.mysql_replication:
+        mode: changeprimary        # <-- Cambiado 'changemaster' por 'changeprimary' para corregir el error
+        master_host: 192.168.1.30  # IP privada fija de tu mariadb-1 en AWS
+        master_user: replica_user
+        master_password: tu_contraseña_segura
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: "[ESCLAVO] Arrancar el motor de replicación asíncrona"
+      community.mysql.mysql_replication:
+        mode: startreplica
+        login_unix_socket: /var/run/mysqld/mysqld.sock

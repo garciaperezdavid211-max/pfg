@@ -1,0 +1,40 @@
+# =================================================================
+# 3. CONFIGURACIÓN DEL BALANCEADOR HAPROXY
+# =================================================================
+- name: Despliegue y Configuracion del Balanceador HAProxy (AWS)
+  hosts: proxy
+  become: true
+  tasks:
+    - name: "[COMÚN] Instalar HAProxy en el servidor"
+      apt:
+        name: haproxy
+        state: present
+        update_cache: yes
+
+    - name: "[CONFIG] Configurar las rutas y balanceo hacia los Apaches de AWS"
+      # Usamos blockinfile para meter la configuración limpia al final del archivo
+      blockinfile:
+        path: /etc/haproxy/haproxy.cfg
+        block: |
+          frontend http_front
+              bind *:80
+              stats uri /haproxy?stats
+              default_backend http_back
+
+          backend http_back
+              balance roundrobin
+              server apache-1 192.168.2.10:80 check
+              server apache-2 192.168.2.11:80 check
+      notify: Reiniciar HAProxy
+
+    - name: "[COMÚN] Asegurar que HAProxy esta arrancado y activo en el inicio"
+      service:
+        name: haproxy
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Reiniciar HAProxy
+      service:
+        name: haproxy
+        state: restarted

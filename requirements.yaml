@@ -1,0 +1,14 @@
+# ansible/requirements.yml
+---
+collections:
+  # Para gestionar MariaDB y la replicación sin PHP
+  - name: community.mysql
+    version: 3.14.0
+    
+  # Para utilidades generales del sistema (filesystems, SSH, etc.)
+  - name: community.general
+    version: 9.0.0
+
+  # Para tareas básicas de sistema operativo
+  - name: ansible.posix
+    version: 1.5.4
